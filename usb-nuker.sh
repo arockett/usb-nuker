@@ -150,21 +150,19 @@ sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
 
 find_eligible_usbs
 
-if [ ${#list[@]} == 1 ]; then
+if [ "${#list[@]}" -eq "1" ]; then
     master=${list[0]}
+    echo "Master USB registered."
+
+    echo "Copying system image from master USB..."
+    diskutil unmountDisk $master
+    dd if=/dev/r$master of=$myimg bs=1024k
+    diskutil mountDisk $master
+    echo "System image copied, initialization complete."
 else
     echo "You didn't insert a USB device or you inserted too many USB devices."
     echo "You must insert one and only one USB device while registering the master."
-    exit 1
 fi
-echo "Master USB registered."
-
-echo "Copying system image from master USB..."
-diskutil unmountDisk $master
-dd if=/dev/r$master of=$myimg bs=1024k
-echo "System image copied, initialization complete."
-echo
-echo
 END
 
 
@@ -215,7 +213,7 @@ while [ $finished -ne 1 ]; do
 		read -p "Insert USB devices to target then press Enter..." -s
 		echo
 		echo "Registering USB devices..."
-		sleep 2
+		sleep 5
 
 		find_eligible_usbs
 		targets=("${list[@]}")
