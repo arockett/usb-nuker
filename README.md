@@ -1,9 +1,11 @@
 # usb-nuke
-Write a system image file onto multiple usb thumb drives at once.
+Write a disk image onto multiple USB thumb drives at once.
 
-First, you need the .img file saved on the computer. I've included
-the one you copied from the master usb onto the mac with the repo.
+First, you need the .img file saved on the computer.
 Run the script in sudo without any of the usb devices plugged in.
 Then follow the instructions and it should work.
+
+Future versions will allow you to pull an image off of a USB
+device to use for imaging.
 
 p.s. I'll make a better README later
