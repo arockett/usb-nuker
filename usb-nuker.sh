@@ -203,13 +203,13 @@ while [ $finished -ne 1 ]; do
 		echo "	(t): Target them again, or"
 		echo "	(i): Insert new targets?"
 		echo
-		read -p "(t/i): " newUSBs
+		read -p "(t/i): " target_status
 	    else
-		newUSBs="y"
+		target_status="i"
 	    fi
 
 	    ## Compile new list of USB targets if needed
-	    if [ "$newUSBs" = "i" ]; then
+	    if [ "$target_status" = "i" ]; then
 		read -p "Insert USB devices to target then press Enter..." -s
 		echo
 		echo "Registering USB devices..."
