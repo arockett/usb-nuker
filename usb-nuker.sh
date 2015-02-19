@@ -79,7 +79,7 @@ select_img ()
 	echo "Would you like to:"
 	echo " 1. Choose an image file from you computer, or"
 	echo " 2. Copy an image from a master USB?"
-#	echo " 3. Go to Main Menu"
+	echo " 3. Go to Main Menu"
 	read -p "Option: " choice
 	echo
 
@@ -123,10 +123,10 @@ select_img ()
 		echo "    You must insert one and only one USB device"
 		echo "    while registering the master device."
 	    fi
-#	elif [ "$choice" == "3" ]; then
-#	    break
+	elif [ "$choice" == "3" ]; then
+	    break
 	else
-	    echo "*** Invalid Option, enter either '1' or '2'. ***"
+	    echo "*** Invalid Option, enter '1', '2', or '3'. ***"
 	fi 
     done
 }
@@ -139,7 +139,11 @@ select_img ()
 ##
 save_img ()
 {
-    echo "save image"
+    if [ "$imgpath" != "" ]; then
+	echo "save image"
+    else
+	echo "*** No disk image has been selected. ***"
+    fi
 }
 
 #------------------------------------------
@@ -174,21 +178,25 @@ wipe_targets ()
 ##
 nuke_targets ()
 {
-    echo "Writing master image to USB targets..."
-    for device in "${targets[@]}"; do
-	{
-	    diskutil unmount $device
-	    diskutil unmountDisk $device
-	} &> /dev/null
-	dd if=$imgpath of=/dev/r$device bs=1024k &
-    done
-    wait
-    for device in "${targets[@]}"; do
-	{
-	    diskutil mountDisk $device
-	} &> /dev/null
-    done
-    echo "Master image copied to USB targets."
+    if [ "$imgpath" != "" ]; then
+	echo "Writing master image to USB targets..."
+	for device in "${targets[@]}"; do
+	    {
+		diskutil unmount $device
+		diskutil unmountDisk $device
+	    } &> /dev/null
+	    dd if=$imgpath of=/dev/r$device bs=1024k &
+	done
+	wait
+	for device in "${targets[@]}"; do
+	    {
+		diskutil mountDisk $device
+	    } &> /dev/null
+	done
+	echo "Master image copied to USB targets."
+    else
+	echo "*** No disk image has been selected. ***"
+    fi
 }
 
 #------------------------------------------
