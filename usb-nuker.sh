@@ -94,6 +94,7 @@ select_img ()
 	    read -p "Enter full path name of the .img file: " imgpath
 	    echo
 
+	    # If the path name ends with '.img' AND the path points to an existing file
 	    if [[ "$imgpath" == *.img ]]; then
 		if [ -f "$imgpath" ]; then
 		    valid_img=1
@@ -153,10 +154,19 @@ save_img ()
     if [ "$imgpath" != "" ]; then
 	read -p "Enter filename: " path
 	echo
+
+	# Make sure the path is not an empty string
+	if [ "$path" == "" ]; then
+	    echo "*** You must enter a path to save the disk image at. ***"
+	    break
+	fi
+
+	# If the path doesn't end with '.img' then append it to the path
 	if [[ "$path" != *.img ]]; then
 	    path="$path.img"
 	fi
 
+	# If the path does not already refer to an existing file then copy the disk image
 	if [ ! -f "$path" ]; then
 	    echo "Saving disk image..."
 	    cp $imgpath $path
