@@ -70,6 +70,21 @@ find_eligible_usbs ()
 #	USB drive. Stores the path to the image in the "imgpath"
 #	variable.
 ##
+select_img ()
+{
+    echo "select image"
+}
+
+#------------------------------------------
+# Name: save_img
+# Description:
+#	Asks user for a location to save the disk image currently
+#	used by the nuker and saves the image to that location.
+##
+save_img ()
+{
+    echo "save image"
+}
 
 #------------------------------------------
 # Name: wipe_targets
@@ -120,6 +135,25 @@ nuke_targets ()
     echo "Master image copied to USB targets."
 }
 
+#------------------------------------------
+# Name: eject_targets
+# Description:
+#	Eject all USB targets.
+##
+eject_targets ()
+{
+    if [ ${#targets[@]} -ne 0 ]; then
+	echo "Ejecting USB targets..."
+	for device in "${targets[@]}"; do
+	    diskutil eject $device
+	done
+	echo "Finished ejecting USB targets."
+	read -p "Remove the ejected devices then press [Enter]..." -s
+	echo
+    else
+	echo "*** There are no USB targets to eject. ***"
+    fi
+}
 
 #---------------------------------------------------------------#
 #		Initialize list of USB devices			#
@@ -143,7 +177,7 @@ excluded=("${list[@]}")
 : <<'END'
 ############ Find Master USB and get the master image ############
 ## Get the system image from the master usb and store in variable called "master"
-read -p "Insert USB with the iCER system image then press Enter..." -s
+read -p "Insert USB with the iCER system image then press [Enter]..." -s
 echo
 echo "Registering master USB..."
 sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
@@ -193,24 +227,26 @@ while [ $finished -ne 1 ]; do
     echo
     echo "**************************************************************"
     PS3='Select option: '
-    options=("Select New Master Image" "Save Master Image" "Eject All USB Targets" "Wipe USB devices" "Nuke USBs with master image" "Wipe USB devices AND nuke them with image" "Exit")
+    options=("Wipe USB devices" "Nuke USBs with master image" "Wipe USB devices AND nuke them with image" "Select New Master Image" "Save Master Image" "Eject All USB Targets"  "Exit")
     select opt in "${options[@]}"
     do
+	echo
 	## Determine if we need to select new USB targets
-	if [ "$opt" != "Exit" ]; then
+	if [ "$opt" == "Wipe USB devices" -o "$opt" == "Nuke USBs with master image" -o "$opt" == "Wipe USB devices AND nuke them with image" ]; then
 	    if [ ${#targets[@]} -ne 0 ]; then
 		echo "You already have valid USB targets, would you like to:"
 		echo "	(t): Target them again, or"
 		echo "	(i): Insert new targets?"
 		echo
 		read -p "(t/i): " target_status
+		echo
 	    else
 		target_status="i"
 	    fi
 
 	    ## Compile new list of USB targets if needed
 	    if [ "$target_status" = "i" ]; then
-		read -p "Insert USB devices to target then press Enter..." -s
+		read -p "Insert USB devices to target then press [Enter]..." -s
 		echo
 		echo "Registering USB devices..."
 		sleep 5
@@ -220,9 +256,9 @@ while [ $finished -ne 1 ]; do
 		
 		if [ ${#targets[@]} -gt 0 ]; then
 		    echo "USB devices registered."
-		else
-		    echo "No USB devices were registered."
 		    echo
+		else
+		    echo "*** No USB devices were registered. ***"
 		    break
 		fi
 	    fi
@@ -230,15 +266,6 @@ while [ $finished -ne 1 ]; do
 	
 	## Take the requested action on the target USBs (or quit)
 	case $opt in
-	    "Select New Master Image")
-		echo "select"
-		;;
-	    "Save Master Image")
-		echo "save"
-		;;
-	    "Eject All USB Targets")
-		echo "eject"
-		;;
 	    "Wipe USB devices")
 		wipe_targets
 		;;
@@ -248,6 +275,15 @@ while [ $finished -ne 1 ]; do
 	    "Wipe USB devices AND nuke them with image")
 		wipe_targets
 		nuke_targets
+		;;
+	    "Select New Master Image")
+		select_img
+		;;
+	    "Save Master Image")
+		save_img
+		;;
+	    "Eject All USB Targets")
+		eject_targets
 		;;
 	    "Exit")
 		finished=1
