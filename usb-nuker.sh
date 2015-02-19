@@ -72,7 +72,58 @@ find_eligible_usbs ()
 ##
 select_img ()
 {
-    echo "select image"
+    valid_img=0
+
+    while [ $valid_img -eq 0 ]; do
+	echo
+	echo "Would you like to:"
+	echo " 1. Choose an image file from you computer, or"
+	echo " 2. Copy an image from a master USB?"
+#	echo " 3. Go to Main Menu"
+	read -p "Option: " choice
+	echo
+
+	if [ "$choice" == "1" ]; then
+	    ############ Specify path of a .img file ############
+	    read -p "Enter full path name of the .img file: " imgpath
+
+	    if [ -f "$imgpath" ]; then
+		valid_img=1
+	    else
+		echo "*** Invalid file path. ***"
+	    fi
+	elif [ "$choice" == "2" ]; then
+	    echo "*** NOTE: This option has not been thoroughly tested yet. ***"
+	    echo
+	    ############ Find Master USB and get the master image ############
+	    read -p "Insert USB with the iCER disk image then press [Enter]..." -s
+	    echo
+	    echo "Registering master USB..."
+	    sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
+
+	    find_eligible_usbs
+
+	    if [ "${#list[@]}" -eq "1" ]; then
+		master=${list[0]}
+		echo "Master USB registered."
+		echo "Copying disk image from master USB..."
+		diskutil unmountDisk $master
+		dd if=/dev/r$master of=$myimg bs=1024k
+		imgpath="$myimg"
+		diskutil mountDisk $master
+		echo "Disk image copied to temporary file."
+		valid_img=1
+	    else
+		echo "*** You inserted the wrong number of USB devices. ***"
+		echo "    You must insert one and only one USB device"
+		echo "    while registering the master device."
+	    fi
+#	elif [ "$choice" == "3" ]; then
+#	    break
+	else
+	    echo "*** Invalid Option, enter either '1' or '2'. ***"
+	fi 
+    done
 }
 
 #------------------------------------------
@@ -169,46 +220,8 @@ excluded=("${list[@]}")
 #---------------------------------------------------------------#
 #			Select a disk image			#
 #---------------------------------------------------------------#
+select_img
 
-## Ignore this big block of code between the ENDs. It was what I used to
-## read the img off of the master thumb drive before having the user
-## enter the path instead.
-
-: <<'END'
-############ Find Master USB and get the master image ############
-## Get the system image from the master usb and store in variable called "master"
-read -p "Insert USB with the iCER system image then press [Enter]..." -s
-echo
-echo "Registering master USB..."
-sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
-
-find_eligible_usbs
-
-if [ "${#list[@]}" -eq "1" ]; then
-    master=${list[0]}
-    echo "Master USB registered."
-
-    echo "Copying system image from master USB..."
-    diskutil unmountDisk $master
-    dd if=/dev/r$master of=$myimg bs=1024k
-    diskutil mountDisk $master
-    echo "System image copied, initialization complete."
-else
-    echo "You didn't insert a USB device or you inserted too many USB devices."
-    echo "You must insert one and only one USB device while registering the master."
-fi
-END
-
-
-############ Find .img file ############
-read -p "Enter the full path name of the .img file: " imgpath
-
-if [ -f "$imgpath" ]; then
-    echo "Path to the .img file: $imgpath"
-else
-    echo "Invalid file path."
-    exit 1
-fi
 
 #---------------------------------------------------------------#
 #			MAIN MENU				#
