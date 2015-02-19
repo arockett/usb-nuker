@@ -96,7 +96,7 @@ select_img ()
 	    echo "*** NOTE: This option has not been thoroughly tested yet. ***"
 	    echo
 	    ############ Find Master USB and get the master image ############
-	    read -p "Insert USB with the iCER disk image then press [Enter]..." -s
+	    read -p "Insert USB with valid disk image then press [Enter]..." -s
 	    echo
 	    echo "Registering master USB..."
 	    sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
@@ -107,11 +107,16 @@ select_img ()
 		master=${list[0]}
 		echo "Master USB registered."
 		echo "Copying disk image from master USB..."
-		diskutil unmountDisk $master
+		diskutil unmountDisk $master &> /dev/null
 		dd if=/dev/r$master of=$myimg bs=1024k
 		imgpath="$myimg"
-		diskutil mountDisk $master
+		echo "imgpath: $imgpath"
+		diskutil mountDisk $master &> /dev/null
 		echo "Disk image copied to temporary file."
+		echo
+		diskutil eject $master
+		read -p "Remove the master USB device then press [Enter]..." -s
+		echo
 		valid_img=1
 	    else
 		echo "*** You inserted the wrong number of USB devices. ***"
@@ -198,9 +203,9 @@ eject_targets ()
 	for device in "${targets[@]}"; do
 	    diskutil eject $device
 	done
+	unset targets
 	echo "Finished ejecting USB targets."
 	read -p "Remove the ejected devices then press [Enter]..." -s
-	echo
     else
 	echo "*** There are no USB targets to eject. ***"
     fi
@@ -280,14 +285,23 @@ while [ $finished -ne 1 ]; do
 	## Take the requested action on the target USBs (or quit)
 	case $opt in
 	    "Wipe USB devices")
-		wipe_targets
+		read -p "Are you sure you want to wipe ALL data from ALL targeted USB devices? (y/n): " choice
+		if [ "$choice" == "y" ]; then
+		    wipe_targets
+		fi
 		;;
 	    "Nuke USBs with master image")
-		nuke_targets
+		read -p "Are you sure you want to overwrite ALL targeted USB devices with the selected disk image? (y/n): " choice
+		if [ "$choice" == "y" ]; then
+		    nuke_targets
+		fi
 		;;
 	    "Wipe USB devices AND nuke them with image")
-		wipe_targets
-		nuke_targets
+		read -p "Are you sure you want to wipe ALL data from ALL targeted USBs AND overwrite ALL targeted USB devices with the selected disk image? (y/n): " choice
+		if [ "$choice" == "y" ]; then
+		    wipe_targets
+		    nuke_targets
+		fi
 		;;
 	    "Select New Master Image")
 		select_img
