@@ -1,4 +1,10 @@
 #!/bin/bash
+echo
+echo "*** NOTE: ***"
+echo "To ensure proper function of this program, do not remove or"
+echo "insert any USB devices while this script is running unless"
+echo "prompted to do so."
+echo "*************"
 echo "---------------------------------------------------------------"
 #---------------------------------------------------------------#
 #			usb-nuke.sh				#
@@ -77,7 +83,7 @@ select_img ()
     while [ $valid_img -eq 0 ]; do
 	echo
 	echo "Would you like to:"
-	echo " 1. Choose an image file from you computer, or"
+	echo " 1. Choose an image file from your computer, or"
 	echo " 2. Copy an image from a master USB?"
 	echo " 3. Go to Main Menu"
 	read -p "Option: " choice
@@ -140,7 +146,17 @@ select_img ()
 save_img ()
 {
     if [ "$imgpath" != "" ]; then
-	echo "save image"
+	read -p "Enter full path name of the .img file: " path
+	echo
+
+	if [ ! -f "$path" ]; then
+	    echo "Saving disk image..."
+	    cp $imgpath $path
+	    echo "Disk image saved."
+	else
+	    echo "*** Invalid path. ***"
+	    echo "That path already has a file associated with it."
+	fi
     else
 	echo "*** No disk image has been selected. ***"
     fi

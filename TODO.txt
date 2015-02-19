@@ -15,4 +15,10 @@
 
 6. Before nuking to a USB device, ensure the image will even fit on
    the device. (Check size of targets before nuking).
+	-> To do this, first change the structure of the 'targets'
+	   and 'excluded' arrays of usb disks. Make them arrays of
+	   arrays that have three elements:
+		{ <usb disk>, <size>, <name> }
+	   This arrangement should also be used when printing the
+	   names of the targeted USBs.
 
