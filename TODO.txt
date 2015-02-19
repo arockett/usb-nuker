@@ -2,18 +2,16 @@
      TO DO LIST for usb-nuker.sh:
 ----------------------------------------
 
-1. Check that image file selected from computer is valid
+1. Check that the disk image selected from computer is valid
 
 2. Check that the disk image pull from a USB master was successful and
    pulled a valid image
 
 3. Check that an image was nuked onto usb devices properly
 
-4. Save selected image file to a location on the computer
+4. List all USB devices (disk: Name) currently being targeted
 
-5. List all USB devices (disk: Name) currently being targeted
-
-6. Before nuking to a USB device, ensure the image will even fit on
+5. Before nuking to a USB device, ensure the image will even fit on
    the device. (Check size of targets before nuking).
 	-> To do this, first change the structure of the 'targets'
 	   and 'excluded' arrays of usb disks. Make them arrays of

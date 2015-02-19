@@ -92,10 +92,14 @@ select_img ()
 	if [ "$choice" == "1" ]; then
 	    ############ Specify path of a .img file ############
 	    read -p "Enter full path name of the .img file: " imgpath
+	    echo
 
-	    if [ -f "$imgpath" ]; then
-		valid_img=1
-	    else
+	    if [[ "$imgpath" == *.img ]]; then
+		if [ -f "$imgpath" ]; then
+		    valid_img=1
+		fi
+	    fi
+	    if [ $valid_img -ne 1 ]; then
 		echo "*** Invalid file path. ***"
 	    fi
 	elif [ "$choice" == "2" ]; then
@@ -113,11 +117,12 @@ select_img ()
 		master=${list[0]}
 		echo "Master USB registered."
 		echo "Copying disk image from master USB..."
+
 		diskutil unmountDisk $master &> /dev/null
 		dd if=/dev/r$master of=$myimg bs=1024k
 		imgpath="$myimg"
-		echo "imgpath: $imgpath"
 		diskutil mountDisk $master &> /dev/null
+
 		echo "Disk image copied to temporary file."
 		echo
 		diskutil eject $master
@@ -146,8 +151,11 @@ select_img ()
 save_img ()
 {
     if [ "$imgpath" != "" ]; then
-	read -p "Enter full path name of the .img file: " path
+	read -p "Enter filename: " path
 	echo
+	if [[ "$path" != *.img ]]; then
+	    path="$path.img"
+	fi
 
 	if [ ! -f "$path" ]; then
 	    echo "Saving disk image..."
