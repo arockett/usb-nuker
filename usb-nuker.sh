@@ -200,7 +200,7 @@ select_img ()
 ##
 save_img ()
 {
-    if [ "$imgpath" != "" ]; then
+    if [ "$imgpath" != "" -a valid_img -eq 1 ]; then
 	read -p "Enter filename: " path
 	echo
 
@@ -225,7 +225,7 @@ save_img ()
 	    echo "That path already has a file associated with it."
 	fi
     else
-	echo "*** No disk image has been selected. ***"
+	echo "*** No valid disk image has been selected. ***"
     fi
 }
 
@@ -260,7 +260,7 @@ wipe_targets ()
 ##
 nuke_targets ()
 {
-    if [ "$imgpath" != "" ]; then
+    if [ "$imgpath" != "" -a valid_img -eq 1 ]; then
 	echo "Writing master image to USB targets..."
 	for device in "${targets[@]}"; do
 	    {
@@ -293,7 +293,7 @@ nuke_targets ()
 	done
 	echo "Master image copied to USB targets."
     else
-	echo "*** No disk image has been selected. ***"
+	echo "*** No valid disk image has been selected. ***"
     fi
 }
 
