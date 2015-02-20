@@ -183,8 +183,7 @@ save_img ()
 #------------------------------------------
 # Name: wipe_targets
 # Description:
-#	Overwrites all USBs in the "targets" array with
-#	random data.
+#	Overwrites all USBs in the "targets" array with zeros.
 ##
 wipe_targets ()
 {
@@ -194,7 +193,7 @@ wipe_targets ()
 	    diskutil unmount $device
 	    diskutil unmountDisk $device
 	} &> /dev/null
-	dd if=/dev/urandom of=/dev/r$device bs=1024k &
+	dd if=/dev/zero of=/dev/r$device bs=1024k &
     done
     wait
     for device in "${targets[@]}"; do

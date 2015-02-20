@@ -2,12 +2,12 @@
      TO DO LIST for usb-nuker.sh:
 ----------------------------------------
 
-1. Check that the disk image selected from computer is valid
+*1. Check that the disk image selected from computer is valid
 
-2. Check that the disk image pull from a USB master was successful and
+*2. Check that the disk image pull from a USB master was successful and
    pulled a valid image
 
-3. Check that an image was nuked onto usb devices properly
+*3. Check that an image was nuked onto usb devices properly
 
 4. List all USB devices (disk: Name) currently being targeted
 
