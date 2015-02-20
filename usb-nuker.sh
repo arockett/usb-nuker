@@ -26,13 +26,14 @@ echo "---------------------------------------------------------------"
 ## Initialize temporary directory and temp files
 #
 mytmpdir=$(mktemp -d /tmp/nuke.XXXXXX) || { echo "Failed to create temp dir"; exit 1; }
-mylist=$(mktemp $mytmpdir/list) || { echo "Failed to create temp file"; exit 1; }
+mylist=$(mktemp $mytmpdir/list1) || { echo "Failed to create temp file"; exit 1; }
+mylist2=$(mktemp $mytmpdir/list2) || { echo "Failed to create temp file"; exit 1; }
+mylist3=$(mktemp $mytmpdir/list3) || { echo "Failed to create temp file"; exit 1; }
 myimg=$(mktemp $mytmpdir/img) || { echo "Failed to create temp file"; exit 1; }
 #
 ## Initialize global variables
 #
-declare -a full_list=()
-declare -a small_list=()
+declare -a list=()
 declare -a excluded=()
 declare -a targets=()
 
@@ -48,26 +49,26 @@ target_status="i"
 # Name: get_usb_list
 # Description:
 #	Stores a list of the USB devices currently plugged
-#	into the machine into the "full_list" array variable.
+#	into the machine into the "list" array variable.
 ##
 get_usb_list ()
 {
     system_profiler SPUSBDataType | grep "BSD Name" | egrep -v s[0-9]\$ | awk '{print $3}' > $mylist
-    full_list=( `cat "$mylist" `)
+    list=( `cat "$mylist" `)
 }
 
 #------------------------------------------
 # Name: find_eligible_usbs
 # Description:
 #	Stores a list of the USB devices plugged in and NOT part of
-#	the "small_list" array into the "full_list" array variable.
+#	the "excluded" array into the "list" array variable.
 ##
 find_eligible_usbs ()
 {
     get_usb_list
 
-    for safe_usb in "${small_list[@]}"; do
-	full_list=( ${full_list[@]/"$safe_usb"/} )
+    for safe_usb in "${excluded[@]}"; do
+	list=( ${list[@]/"$safe_usb"/} )
     done
 }
 
@@ -78,33 +79,38 @@ find_eligible_usbs ()
 ##
 validate_img ()
 {
+    echo "Validating selected disk image..."
     valid_img=0
     if [ "$imgpath" != "" ]; then
 	# Try to mount the file and see if it succeeds
-	get_usb_list
-	small_list=("${full_list[@]}")
+	diskutil list | egrep /dev/disk > $mylist
 	open $imgpath
-	find_eligible_usbs
+	sleep 3  # This is needed to wait for the disk to spin up
+	diskutil list | egrep /dev/disk > $mylist2
+	grep -f $mylist -v $mylist2 | sed 's/[/]dev[/]*//g' > $mylist3
+	list=( `cat "$mylist3" `)
 
-	if [ "${full_list[@]}" -eq 1 ]; then
-	    di="${full_list[0]}"
-	    part="/dev/$di"
+	if [ ${#list[@]} -eq 1 ]; then
+	    disk=${list[0]}
+	    part="/dev/$disk"
 	    part+="s1"
-	    diskutil unmountDisk $di
+	    {
+	    diskutil unmountDisk $disk
 	    fsck_msdos $part
+	    } > /dev/null
 	    if [ $? -eq 0 ]; then
-		diskutil eject $di
+		diskutil eject $disk > /dev/null
 		echo "Selected disk image is valid."
 		valid_img=1
 	    else
-		echo "*** There was a problem validating the disk image. ***"
-		echo "The file at:\n\t$imgpath"
+		echo "*** ERROR ***: There was a problem validating the disk image."
+		echo -e "The file at:\n\t$imgpath"
 		echo "is not a valid FAT file system."
 		valid_img=0
 	    fi
 	else
-	    echo "*** There was a problem validating the disk image. ***"
-	    echo "The file at:\n\t$imgpath"
+	    echo "*** ERROR ***: There was a problem validating the disk image."
+	    echo -e "The file at:\n\t$imgpath"
 	    echo "cannot be mounted as a disk."
 	    valid_img=0
 	fi
@@ -122,9 +128,9 @@ validate_img ()
 ##
 select_img ()
 {
-    finished=0
+    selected=0
 
-    while [ $valid_img -eq 0 ]; do
+    while [ $selected -eq 0 ]; do
 	echo
 	echo "Would you like to:"
 	echo " 1. Choose an image file from your computer, or"
@@ -143,23 +149,24 @@ select_img ()
 	    if [ -f "$imgpath" ]; then
 		validate_img
 		if [ $valid_img -eq 1 ]; then
-		    finished=1
+		    selected=1
 		fi
 	    fi
 	elif [ "$choice" == "2" ]; then
-	    echo "*** NOTE: This option has not been thoroughly tested yet. ***"
-	    echo
 	    ############ Find Master USB and get the master image ############
 	    read -p "Insert USB with valid disk image then press [Enter]..." -s
 	    echo
 	    echo "Registering master USB..."
-	    sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
+	    sleep 3   # sleep for 3 seconds to ensure the usb drive has spun up
 
-	    small_list=("${excluded[@]}")
-	    find_eligible_usbs
+	    # Get list of usb devices added that are not part of 'excluded' or 'targets'
+	    get_usb_list
+	    for usb in "${excluded[@]}" "${targets[@]}"; do
+		list=( ${list[@]/"$usb"/} )
+	    done
 
-	    if [ "${#full_list[@]}" -eq "1" ]; then
-		master=${full_list[0]}
+	    if [ ${#list[@]} -eq 1 ]; then
+		master=${list[0]}
 		echo "Master USB registered."
 		echo "Copying disk image from master USB..."
 
@@ -177,17 +184,18 @@ select_img ()
 		# Validate disk image pulled
 		validate_img
 		if [ $valid_img -eq 1 ]; then
-		    finished=1
+		    selected=1
 		fi
 	    else
-		echo "*** You inserted the wrong number of USB devices. ***"
-		echo "    You must insert one and only one USB device"
-		echo "    while registering the master device."
+		echo "*** NOTE ***: You inserted the wrong number of USB devices."
+		echo "	You must insert one and only one USB device while registering"
+		echo "	the master device. Safely eject any devices you just inserted"
+		echo "	and try again."
 	    fi
 	elif [ "$choice" == "3" ]; then
-	    finished=1
+	    selected=1
 	else
-	    echo "*** Invalid Option, enter '1', '2', or '3'. ***"
+	    echo "*** Invalid Option ***: Enter '1', '2', or '3'." 
 	fi 
     done
 }
@@ -200,7 +208,7 @@ select_img ()
 ##
 save_img ()
 {
-    if [ "$imgpath" != "" -a valid_img -eq 1 ]; then
+    if [ "$imgpath" != "" -a $valid_img -eq 1 ]; then
 	read -p "Enter filename: " path
 	echo
 
@@ -221,7 +229,7 @@ save_img ()
 	    cp $imgpath $path
 	    echo "Disk image saved."
 	else
-	    echo "*** Invalid path. ***"
+	    echo "*** ERROR ***: Invalid path."
 	    echo "That path already has a file associated with it."
 	fi
     else
@@ -260,7 +268,7 @@ wipe_targets ()
 ##
 nuke_targets ()
 {
-    if [ "$imgpath" != "" -a valid_img -eq 1 ]; then
+    if [ "$imgpath" != "" -a $valid_img -eq 1 ]; then
 	echo "Writing master image to USB targets..."
 	for device in "${targets[@]}"; do
 	    {
@@ -276,18 +284,20 @@ nuke_targets ()
 	    part+="s1"
 	    fsck_msdos $part
 	    if [ $? -ne 0 ]; then
-		echo "*** There was a problem copying the disk image to $device. ***"
+		echo "*** ERROR ***: There was a problem copying the disk image to $device."
 		echo "$device does not have a valid FAT file system."
 	    fi
 
 	    # Try to mount the file and see if it succeeds
-	    get_usb_list
-	    small_list=("${full_list[@]}")
+	    diskutil list | egrep /dev/disk > $mylist
 	    diskutil mountDisk $device &> /dev/null
-	    find_eligible_usbs
+	    sleep 2  # This is needed to wait for the disk to spin up
+	    diskutil list | egrep /dev/disk > $mylist2
+	    grep -f $mylist -v $mylist2 > $mylist3
+	    list=( `cat "$mylist3" `)
 
-	    if [ "${full_list[@]}" -ne 1 ]; then
-		echo "*** There was a problem copying the disk image to $device. ***"
+	    if [ ${#list[@]} -ne 1 ]; then
+		echo "*** ERROR ***: There was a problem copying the disk image to $device."
 		echo "$device does not contain a mountable file system."
 	    fi
 	done
@@ -325,7 +335,7 @@ eject_targets ()
 # USBs are stored in an array called "excluded".		#
 #---------------------------------------------------------------#
 get_usb_list
-excluded=("${full_list[@]}")
+excluded=("${list[@]}")
 
 
 #---------------------------------------------------------------#
@@ -364,26 +374,28 @@ while [ $finished -ne 1 ]; do
 		echo
 		read -p "(t/i): " target_status
 		echo
+		if [ "$target_status" == "i" ]; then
+		    eject_targets
+		fi
 	    else
 		target_status="i"
 	    fi
 
 	    ## Compile new list of USB targets if needed
-	    if [ "$target_status" = "i" ]; then
+	    if [ "$target_status" == "i" ]; then
 		read -p "Insert USB devices to target then press [Enter]..." -s
 		echo
 		echo "Registering USB devices..."
 		sleep 5
 
-		small_list=("${excluded[@]}")
 		find_eligible_usbs
-		targets=("${full_list[@]}")
+		targets=("${list[@]}")
 		
 		if [ ${#targets[@]} -gt 0 ]; then
 		    echo "USB devices registered."
 		    echo
 		else
-		    echo "*** No USB devices were registered. ***"
+		    echo "*** WARNING ***: No USB devices were registered."
 		    break
 		fi
 	    fi
