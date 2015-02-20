@@ -31,11 +31,13 @@ myimg=$(mktemp $mytmpdir/img) || { echo "Failed to create temp file"; exit 1; }
 #
 ## Initialize global variables
 #
-declare -a list=()
+declare -a full_list=()
+declare -a small_list=()
 declare -a excluded=()
 declare -a targets=()
 
 imgpath=""
+valid_img=0
 target_status="i"
 
 #---------------------------------------------------------------#
@@ -46,27 +48,69 @@ target_status="i"
 # Name: get_usb_list
 # Description:
 #	Stores a list of the USB devices currently plugged
-#	into the machine into the "list" array variable.
+#	into the machine into the "full_list" array variable.
 ##
 get_usb_list ()
 {
     system_profiler SPUSBDataType | grep "BSD Name" | egrep -v s[0-9]\$ | awk '{print $3}' > $mylist
-    list=( `cat "$mylist" `)
+    full_list=( `cat "$mylist" `)
 }
 
 #------------------------------------------
 # Name: find_eligible_usbs
 # Description:
 #	Stores a list of the USB devices plugged in and NOT part of
-#	the "excluded" array into the "list" array variable.
+#	the "small_list" array into the "full_list" array variable.
 ##
 find_eligible_usbs ()
 {
     get_usb_list
 
-    for safe_usb in "${excluded[@]}"; do
-	list=( ${targets[@]/"$safe_usb"/} )
+    for safe_usb in "${small_list[@]}"; do
+	full_list=( ${full_list[@]/"$safe_usb"/} )
     done
+}
+
+#------------------------------------------
+# Name: validate_img
+# Description:
+#	Checks a file to see if it is a valid disk image.
+##
+validate_img ()
+{
+    valid_img=0
+    if [ "$imgpath" != "" ]; then
+	# Try to mount the file and see if it succeeds
+	get_usb_list
+	small_list=("${full_list[@]}")
+	open $imgpath
+	find_eligible_usbs
+
+	if [ "${full_list[@]}" -eq 1 ]; then
+	    di="${full_list[0]}"
+	    part="/dev/$di"
+	    part+="s1"
+	    diskutil unmountDisk $di
+	    fsck_msdos $part
+	    if [ $? -eq 0 ]; then
+		diskutil eject $di
+		echo "Selected disk image is valid."
+		valid_img=1
+	    else
+		echo "*** There was a problem validating the disk image. ***"
+		echo "The file at:\n\t$imgpath"
+		echo "is not a valid FAT file system."
+		valid_img=0
+	    fi
+	else
+	    echo "*** There was a problem validating the disk image. ***"
+	    echo "The file at:\n\t$imgpath"
+	    echo "cannot be mounted as a disk."
+	    valid_img=0
+	fi
+    else
+	echo "*** No disk image has been selected. ***"
+    fi
 }
 
 #------------------------------------------
@@ -78,7 +122,7 @@ find_eligible_usbs ()
 ##
 select_img ()
 {
-    valid_img=0
+    finished=0
 
     while [ $valid_img -eq 0 ]; do
 	echo
@@ -94,14 +138,13 @@ select_img ()
 	    read -p "Enter full path name of the .img file: " imgpath
 	    echo
 
-	    # If the path name ends with '.img' AND the path points to an existing file
-	    if [[ "$imgpath" == *.img ]]; then
-		if [ -f "$imgpath" ]; then
-		    valid_img=1
+	    # If the path points to an existing file, check to make sure the
+	    # file is a valid disk image
+	    if [ -f "$imgpath" ]; then
+		validate_img
+		if [ $valid_img -eq 1 ]; then
+		    finished=1
 		fi
-	    fi
-	    if [ $valid_img -ne 1 ]; then
-		echo "*** Invalid file path. ***"
 	    fi
 	elif [ "$choice" == "2" ]; then
 	    echo "*** NOTE: This option has not been thoroughly tested yet. ***"
@@ -112,10 +155,11 @@ select_img ()
 	    echo "Registering master USB..."
 	    sleep 5   # sleep for 5 seconds to ensure the usb drive has spun up
 
+	    small_list=("${excluded[@]}")
 	    find_eligible_usbs
 
-	    if [ "${#list[@]}" -eq "1" ]; then
-		master=${list[0]}
+	    if [ "${#full_list[@]}" -eq "1" ]; then
+		master=${full_list[0]}
 		echo "Master USB registered."
 		echo "Copying disk image from master USB..."
 
@@ -129,14 +173,19 @@ select_img ()
 		diskutil eject $master
 		read -p "Remove the master USB device then press [Enter]..." -s
 		echo
-		valid_img=1
+
+		# Validate disk image pulled
+		validate_img
+		if [ $valid_img -eq 1 ]; then
+		    finished=1
+		fi
 	    else
 		echo "*** You inserted the wrong number of USB devices. ***"
 		echo "    You must insert one and only one USB device"
 		echo "    while registering the master device."
 	    fi
 	elif [ "$choice" == "3" ]; then
-	    break
+	    finished=1
 	else
 	    echo "*** Invalid Option, enter '1', '2', or '3'. ***"
 	fi 
@@ -222,9 +271,25 @@ nuke_targets ()
 	done
 	wait
 	for device in "${targets[@]}"; do
-	    {
-		diskutil mountDisk $device
-	    } &> /dev/null
+	    # Test the FAT file system
+	    part="/dev/$device"
+	    part+="s1"
+	    fsck_msdos $part
+	    if [ $? -ne 0 ]; then
+		echo "*** There was a problem copying the disk image to $device. ***"
+		echo "$device does not have a valid FAT file system."
+	    fi
+
+	    # Try to mount the file and see if it succeeds
+	    get_usb_list
+	    small_list=("${full_list[@]}")
+	    diskutil mountDisk $device &> /dev/null
+	    find_eligible_usbs
+
+	    if [ "${full_list[@]}" -ne 1 ]; then
+		echo "*** There was a problem copying the disk image to $device. ***"
+		echo "$device does not contain a mountable file system."
+	    fi
 	done
 	echo "Master image copied to USB targets."
     else
@@ -260,7 +325,7 @@ eject_targets ()
 # USBs are stored in an array called "excluded".		#
 #---------------------------------------------------------------#
 get_usb_list
-excluded=("${list[@]}")
+excluded=("${full_list[@]}")
 
 
 #---------------------------------------------------------------#
@@ -310,8 +375,9 @@ while [ $finished -ne 1 ]; do
 		echo "Registering USB devices..."
 		sleep 5
 
+		small_list=("${excluded[@]}")
 		find_eligible_usbs
-		targets=("${list[@]}")
+		targets=("${full_list[@]}")
 		
 		if [ ${#targets[@]} -gt 0 ]; then
 		    echo "USB devices registered."
