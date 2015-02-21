@@ -282,23 +282,17 @@ nuke_targets ()
 	    # Test the FAT file system
 	    part="/dev/$device"
 	    part+="s1"
+	    {
+	    diskutil unmountDisk $device
 	    fsck_msdos $part
+	    } > /dev/null
 	    if [ $? -ne 0 ]; then
+		echo
 		echo "*** ERROR ***: There was a problem copying the disk image to $device."
 		echo "$device does not have a valid FAT file system."
-	    fi
-
-	    # Try to mount the file and see if it succeeds
-	    diskutil list | egrep /dev/disk > $mylist
-	    diskutil mountDisk $device &> /dev/null
-	    sleep 2  # This is needed to wait for the disk to spin up
-	    diskutil list | egrep /dev/disk > $mylist2
-	    grep -f $mylist -v $mylist2 > $mylist3
-	    list=( `cat "$mylist3" `)
-
-	    if [ ${#list[@]} -ne 1 ]; then
-		echo "*** ERROR ***: There was a problem copying the disk image to $device."
-		echo "$device does not contain a mountable file system."
+		echo
+	    else
+		diskutil mountDisk $device
 	    fi
 	done
 	echo "Master image copied to USB targets."
