@@ -1,10 +1,10 @@
 #!/bin/bash
+
 echo
 echo "*** NOTE: ***"
 echo "To ensure proper function of this program, do not remove or"
 echo "insert any USB devices while this script is running unless"
 echo "prompted to do so."
-echo "*************"
 echo "---------------------------------------------------------------"
 #---------------------------------------------------------------#
 #			usb-nuke.sh				#
@@ -332,108 +332,180 @@ get_usb_list
 excluded=("${list[@]}")
 
 
-#---------------------------------------------------------------#
-#			Select a disk image			#
-#---------------------------------------------------------------#
-select_img
-
-
-#---------------------------------------------------------------#
-#			MAIN MENU				#
-#	1. Wipe USB devices					#
-#	2. Nuke USBs with master image				#
-#	3. Wipe USB devices AND nuke them with image		#
-#	4. Exit							#
-#---------------------------------------------------------------#
-#
-finished=0   # Variable sentry that watches for the user to select exit
-
-## The select command below will make a menu and loop automatically
-## but will not display the menu options each time. The while loop
-## allows us to force the menu options to display each loop through.
-while [ $finished -ne 1 ]; do
+if [ "$1" == "-n" -o "$1" == "-ni" ]; then
+    #-----------------------------------------------------------#
+    #			NUCLEAR OPTION				#
+    #	Take whatever is on the first USB device and copy	#
+    #	it automatically to every other USB device.		#
+    #-----------------------------------------------------------#
+    #
+    # Prompt user to insert master USB
+    read -p "Insert Master USB with valid disk image then press [Enter]..." -s
     echo
-    echo "**************************************************************"
-    PS3='Select option: '
-    options=("Wipe USB devices" "Nuke USBs with master image" "Wipe USB devices AND nuke them with image" "Select New Master Image" "Save Master Image" "Eject All USB Targets"  "Exit")
-    select opt in "${options[@]}"
-    do
+    echo "Registering master USB..."
+    sleep 3   # sleep for 3 seconds to ensure the usb drive has spun up
+    find_eligible_usbs
+    if [ ${#list[@]} -ne 1 ]; then
+	echo "*** ERROR ***: You inserted the wrong number of USB devices."
+	echo "	You must insert one and only one USB device while registering"
+	echo "	the master device. Safely eject any devices you just inserted"
+	echo "	and try again."
+	exit 1
+    else
+	master=${list[0]}
+	excluded=("${excluded[@]}" "$master")
+	echo "Master USB registered."
+    fi
+
+    # Prompt user to insert target USBs
+    read -p "Insert USB devices to target then press [Enter]..." -s
+    echo
+    echo "Registering USB devices..."
+    sleep 5	# sleep for 5 seconds to ensure the usb drivers have spun up
+    find_eligible_usbs
+    if [ ${#list[@]} -lt 1 ]; then
+	echo "*** ERROR ***: No USB devices were registered as targets."
+	echo "You must insert at least one USB device to target."
 	echo
-	## Determine if we need to select new USB targets
-	if [ "$opt" == "Wipe USB devices" -o "$opt" == "Nuke USBs with master image" -o "$opt" == "Wipe USB devices AND nuke them with image" ]; then
-	    if [ ${#targets[@]} -ne 0 ]; then
-		echo "You already have valid USB targets, would you like to:"
-		echo "	(t): Target them again, or"
-		echo "	(i): Insert new targets?"
-		echo
-		read -p "(t/i): " target_status
-		echo
-		if [ "$target_status" == "i" ]; then
-		    eject_targets
-		fi
-	    else
-		target_status="i"
-	    fi
+	echo "*** NOTE ***: You should wait until all inserted USB devices"
+	echo "have been noticed by the computer before pressing [Enter]."
+	exit 1
+    else
+	targets=("${list[@]}")
+	echo "USB devices registered as targets."
+    fi
 
-	    ## Compile new list of USB targets if needed
-	    if [ "$target_status" == "i" ]; then
-		read -p "Insert USB devices to target then press [Enter]..." -s
-		echo
-		echo "Registering USB devices..."
-		sleep 5
+    # Pull master image from master USB
+    echo "Copying disk image from master USB..."
 
-		find_eligible_usbs
-		targets=("${list[@]}")
-		
-		if [ ${#targets[@]} -gt 0 ]; then
-		    echo "USB devices registered."
-		    echo
-		else
-		    echo "*** WARNING ***: No USB devices were registered."
-		    break
-		fi
-	    fi
+    diskutil unmountDisk $master &> /dev/null
+    dd if=/dev/r$master of=$myimg bs=1024k
+    imgpath="$myimg"
+    diskutil mountDisk $master &> /dev/null
+
+    echo "Master USB copied to temporary file."
+    echo
+
+    if [ "$1" == "-ni" ]; then
+	# Validate disk image pulled if the user wants
+	validate_img
+	if [ $valid_img -nq 1 ]; then
+	    echo "*** ERROR ***: The image pulled from the master USB is not a valid FAT disk image."
+	    exit 1
 	fi
-	
-	## Take the requested action on the target USBs (or quit)
-	case $opt in
-	    "Wipe USB devices")
-		read -p "Are you sure you want to wipe ALL data from ALL targeted USB devices? (y/n): " choice
-		if [ "$choice" == "y" ]; then
-		    wipe_targets
+    fi
+
+    # Write master image to target USBs
+    read -p "Press [Enter] to copy the master USB to ALL targets..." -s
+    echo
+    nuke_targets
+else
+    #-----------------------------------------------------------#
+    #			Select a disk image			#
+    #-----------------------------------------------------------#
+    select_img
+
+    #-----------------------------------------------------------#
+    #			MAIN MENU				#
+    #	1. Wipe USB devices					#
+    #	2. Nuke USBs with master image				#
+    #	3. Wipe USB devices AND nuke them with image		#
+    #	4. Select New Master Image				#
+    #	5. Save Master Image					#
+    #	6. Eject All USB Targets				#
+    #	7. Exit							#
+    #-----------------------------------------------------------#
+    #
+        
+    finished=0   # Variable sentry that watches for the user to select exit
+
+    ## The select command below will make a menu and loop automatically
+    ## but will not display the menu options each time. The while loop
+    ## allows us to force the menu options to display each loop through.
+    while [ $finished -ne 1 ]; do
+	echo
+	echo "**************************************************************"
+	PS3='Select option: '
+	options=("Wipe USB devices" "Nuke USBs with master image" "Wipe USB devices AND nuke them with image" "Select New Master Image" "Save Master Image" "Eject All USB Targets"  "Exit")
+	select opt in "${options[@]}"
+	do
+	    echo
+	    ## Determine if we need to select new USB targets
+	    if [ "$opt" == "Wipe USB devices" -o "$opt" == "Nuke USBs with master image" -o "$opt" == "Wipe USB devices AND nuke them with image" ]; then
+		if [ ${#targets[@]} -ne 0 ]; then
+		    echo "You already have valid USB targets, would you like to:"
+		    echo "	(t): Target them again, or"
+		    echo "	(i): Insert new targets?"
+		    echo
+		    read -p "(t/i): " target_status
+		    echo
+		    if [ "$target_status" == "i" ]; then
+			eject_targets
+		    fi
+		else
+		    target_status="i"
 		fi
-		;;
-	    "Nuke USBs with master image")
-		read -p "Are you sure you want to overwrite ALL targeted USB devices with the selected disk image? (y/n): " choice
-		if [ "$choice" == "y" ]; then
-		    nuke_targets
+
+		## Compile new list of USB targets if needed
+		if [ "$target_status" == "i" ]; then
+		    read -p "Insert USB devices to target then press [Enter]..." -s
+		    echo
+		    echo "Registering USB devices..."
+		    sleep 5
+
+		    find_eligible_usbs
+		    targets=("${list[@]}")
+		    
+		    if [ ${#targets[@]} -gt 0 ]; then
+			echo "USB devices registered."
+			echo
+		    else
+			echo "*** WARNING ***: No USB devices were registered."
+			break
+		    fi
 		fi
-		;;
-	    "Wipe USB devices AND nuke them with image")
-		read -p "Are you sure you want to wipe ALL data from ALL targeted USBs AND overwrite ALL targeted USB devices with the selected disk image? (y/n): " choice
-		if [ "$choice" == "y" ]; then
-		    wipe_targets
-		    nuke_targets
-		fi
-		;;
-	    "Select New Master Image")
-		select_img
-		;;
-	    "Save Master Image")
-		save_img
-		;;
-	    "Eject All USB Targets")
-		eject_targets
-		;;
-	    "Exit")
-		finished=1
-		;;
-	    *) echo invalid option;;
-	esac
-	break
+	    fi
+	    
+	    ## Take the requested action on the target USBs (or quit)
+	    case $opt in
+		"Wipe USB devices")
+		    read -p "Are you sure you want to wipe ALL data from ALL targeted USB devices? (y/n): " choice
+		    if [ "$choice" == "y" ]; then
+			wipe_targets
+		    fi
+		    ;;
+		"Nuke USBs with master image")
+		    read -p "Are you sure you want to overwrite ALL targeted USB devices with the selected disk image? (y/n): " choice
+		    if [ "$choice" == "y" ]; then
+			nuke_targets
+		    fi
+		    ;;
+		"Wipe USB devices AND nuke them with image")
+		    read -p "Are you sure you want to wipe ALL data from ALL targeted USBs AND overwrite ALL targeted USB devices with the selected disk image? (y/n): " choice
+		    if [ "$choice" == "y" ]; then
+			wipe_targets
+			nuke_targets
+		    fi
+		    ;;
+		"Select New Master Image")
+		    select_img
+		    ;;
+		"Save Master Image")
+		    save_img
+		    ;;
+		"Eject All USB Targets")
+		    eject_targets
+		    ;;
+		"Exit")
+		    finished=1
+		    ;;
+		*) echo invalid option;;
+	    esac
+	    break
+	done
     done
-done
-#---------------------------------------------------------------#
+    #---------------------------------------------------------------#
+fi
 
 rm -r $mytmpdir
 
