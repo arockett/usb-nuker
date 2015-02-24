@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo
-echo "*** NOTE: ***"
+echo "*** NOTE ***:"
 echo "To ensure proper function of this program, do not remove or"
 echo "insert any USB devices while this script is running unless"
 echo "prompted to do so."
@@ -108,18 +108,21 @@ validate_img ()
 		echo "Selected disk image is valid."
 		valid_img=1
 	    else
+		echo
 		echo "*** ERROR ***: There was a problem validating the disk image."
 		echo -e "The file at:\n\t$imgpath"
 		echo "is not a valid FAT file system."
 		valid_img=0
 	    fi
 	else
+	    echo
 	    echo "*** ERROR ***: There was a problem validating the disk image."
 	    echo -e "The file at:\n\t$imgpath"
 	    echo "cannot be mounted as a disk."
 	    valid_img=0
 	fi
     else
+	echo
 	echo "*** No disk image has been selected. ***"
     fi
 }
@@ -193,6 +196,7 @@ select_img ()
 		    selected=1
 		fi
 	    else
+		echo
 		echo "*** NOTE ***: You inserted the wrong number of USB devices."
 		echo "	You must insert one and only one USB device while registering"
 		echo "	the master device. Safely eject any devices you just inserted"
@@ -201,6 +205,7 @@ select_img ()
 	elif [ "$choice" == "3" ]; then
 	    selected=1
 	else
+	    echo
 	    echo "*** Invalid Option ***: Enter '1', '2', or '3'." 
 	fi 
     done
@@ -356,6 +361,7 @@ if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
     sleep 3   # sleep for 3 seconds to ensure the usb drive has spun up
     find_eligible_usbs
     if [ ${#list[@]} -ne 1 ]; then
+	echo
 	echo "*** ERROR ***: You inserted the wrong number of USB devices."
 	echo "	You must insert one and only one USB device while registering"
 	echo "	the master device. Safely eject any devices you just inserted"
@@ -368,12 +374,14 @@ if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
     fi
 
     # Prompt user to insert target USBs
+    echo
     read -p "Insert USB devices to target then press [Enter]..." -s
     echo
     echo "Registering USB devices..."
     sleep 5	# sleep for 5 seconds to ensure the usb drivers have spun up
     find_eligible_usbs
     if [ ${#list[@]} -lt 1 ]; then
+	echo
 	echo "*** ERROR ***: No USB devices were registered as targets."
 	echo "You must insert at least one USB device to target."
 	echo
@@ -386,6 +394,7 @@ if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
     fi
 
     # Pull master image from master USB
+    echo
     echo "Copying disk image from master USB..."
 
     diskutil unmountDisk $master &> /dev/null
@@ -394,11 +403,13 @@ if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
     diskutil mountDisk $master &> /dev/null
 
     echo "Master USB copied to temporary file."
-    echo
 
     # Validate disk image pulled
+    echo
     validate_img
     if [ $valid_img -ne 1 ]; then
+	echo
+	echo "*** WARNING ***:"
 	echo "The disk image from the master USB is not a complete FAT disk image."
 	read -p "Would you like to continue anyway? (y/n): " ni
 	if [ "$ni" == "n" ]; then
@@ -408,13 +419,15 @@ if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
     fi
 
     # Write master image to target USBs
+    echo
     read -p "Press [Enter] to copy the master USB to ALL targets..." -s
     echo
     nuke_targets
 
     # Eject the master USB and all Targets
+    echo
     echo "Ejecting master USB device..."
-    diskutil eject $master
+    diskutil eject $master &> /dev/null
     echo "Master USB ejected."
     eject_targets
 
