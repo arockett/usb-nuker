@@ -29,9 +29,12 @@ mytmpdir=$(mktemp -d /tmp/nuke.XXXXXX) || { echo "Failed to create temp dir"; ex
 mylist=$(mktemp $mytmpdir/list1) || { echo "Failed to create temp file"; exit 1; }
 mylist2=$(mktemp $mytmpdir/list2) || { echo "Failed to create temp file"; exit 1; }
 mylist3=$(mktemp $mytmpdir/list3) || { echo "Failed to create temp file"; exit 1; }
-myimg=$(mktemp $mytmpdir/img) || { echo "Failed to create temp file"; exit 1; }
+myimg="$$.img"  # can't make an image file in tmp because then we couldn't use "open" to mount it when checking its validity. Don't know why
 
+# Set the temporary files to delete whenever the program exits
 trap "rm -fr $mytmpdir" EXIT
+trap "rm -f $myimg" EXIT
+
 #
 ## Initialize global variables
 #
@@ -156,6 +159,7 @@ select_img ()
 	    fi
 	elif [ "$choice" == "2" ]; then
 	    ############ Find Master USB and get the master image ############
+	    rm -f $myimg
 	    read -p "Insert USB with valid disk image then press [Enter]..." -s
 	    echo
 	    echo "Registering master USB..."
@@ -318,6 +322,7 @@ eject_targets ()
 	unset targets
 	echo "Finished ejecting USB targets."
 	read -p "Remove the ejected devices then press [Enter]..." -s
+	echo
     else
 	echo "*** There are no USB targets to eject. ***"
     fi
@@ -334,7 +339,7 @@ get_usb_list
 excluded=("${list[@]}")
 
 
-if [ "$1" == "-q" -o "$1" == "--quick_nuke" ]; then
+if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
     #-----------------------------------------------------------#
     #			NUCLEAR OPTION				#
     #	Take whatever is on the first USB device and copy	#
@@ -358,7 +363,6 @@ if [ "$1" == "-q" -o "$1" == "--quick_nuke" ]; then
 	exit 1
     else
 	master=${list[0]}
-	echo "master: $master"
 	excluded=("${excluded[@]}" "$master")
 	echo "Master USB registered."
     fi
@@ -378,7 +382,6 @@ if [ "$1" == "-q" -o "$1" == "--quick_nuke" ]; then
 	exit 1
     else
 	targets=("${list[@]}")
-	echo "targets: ${targets[@]}"
 	echo "USB devices registered as targets."
     fi
 
