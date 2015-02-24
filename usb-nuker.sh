@@ -7,7 +7,7 @@ echo "insert any USB devices while this script is running unless"
 echo "prompted to do so."
 echo "---------------------------------------------------------------"
 #---------------------------------------------------------------#
-#			usb-nuke.sh				#
+#			usb-nuker.sh				#
 # Description:							#
 #	Menu driven script made to both wipe copious amounts	#
 #	of USB devices and/or nuke them with a specified 	#
@@ -30,6 +30,8 @@ mylist=$(mktemp $mytmpdir/list1) || { echo "Failed to create temp file"; exit 1;
 mylist2=$(mktemp $mytmpdir/list2) || { echo "Failed to create temp file"; exit 1; }
 mylist3=$(mktemp $mytmpdir/list3) || { echo "Failed to create temp file"; exit 1; }
 myimg=$(mktemp $mytmpdir/img) || { echo "Failed to create temp file"; exit 1; }
+
+trap "rm -fr $mytmpdir" EXIT
 #
 ## Initialize global variables
 #
@@ -332,13 +334,16 @@ get_usb_list
 excluded=("${list[@]}")
 
 
-if [ "$1" == "-n" -o "$1" == "-ni" ]; then
+if [ "$1" == "-q" -o "$1" == "--quick_nuke" ]; then
     #-----------------------------------------------------------#
     #			NUCLEAR OPTION				#
     #	Take whatever is on the first USB device and copy	#
     #	it automatically to every other USB device.		#
     #-----------------------------------------------------------#
     #
+    echo "QUICK-NUKE MODE: Press [Ctrl+C] at any time to exit."
+    echo "---------------------------------------------------------------"
+
     # Prompt user to insert master USB
     read -p "Insert Master USB with valid disk image then press [Enter]..." -s
     echo
@@ -353,6 +358,7 @@ if [ "$1" == "-n" -o "$1" == "-ni" ]; then
 	exit 1
     else
 	master=${list[0]}
+	echo "master: $master"
 	excluded=("${excluded[@]}" "$master")
 	echo "Master USB registered."
     fi
@@ -372,6 +378,7 @@ if [ "$1" == "-n" -o "$1" == "-ni" ]; then
 	exit 1
     else
 	targets=("${list[@]}")
+	echo "targets: ${targets[@]}"
 	echo "USB devices registered as targets."
     fi
 
@@ -386,11 +393,13 @@ if [ "$1" == "-n" -o "$1" == "-ni" ]; then
     echo "Master USB copied to temporary file."
     echo
 
-    if [ "$1" == "-ni" ]; then
-	# Validate disk image pulled if the user wants
-	validate_img
-	if [ $valid_img -nq 1 ]; then
-	    echo "*** ERROR ***: The image pulled from the master USB is not a valid FAT disk image."
+    # Validate disk image pulled
+    validate_img
+    if [ $valid_img -ne 1 ]; then
+	echo "The disk image from the master USB is not a complete FAT disk image."
+	read -p "Would you like to continue anyway? (y/n): " ni
+	if [ "$ni" == "n" ]; then
+	    echo "Exiting USB Nuker..."
 	    exit 1
 	fi
     fi
@@ -399,6 +408,13 @@ if [ "$1" == "-n" -o "$1" == "-ni" ]; then
     read -p "Press [Enter] to copy the master USB to ALL targets..." -s
     echo
     nuke_targets
+
+    # Eject the master USB and all Targets
+    echo "Ejecting master USB device..."
+    diskutil eject $master
+    echo "Master USB ejected."
+    eject_targets
+
 else
     #-----------------------------------------------------------#
     #			Select a disk image			#
@@ -424,7 +440,8 @@ else
     ## allows us to force the menu options to display each loop through.
     while [ $finished -ne 1 ]; do
 	echo
-	echo "**************************************************************"
+	echo "MAIN MENU:"
+	echo "---------------------------------------------------------------"
 	PS3='Select option: '
 	options=("Wipe USB devices" "Nuke USBs with master image" "Wipe USB devices AND nuke them with image" "Select New Master Image" "Save Master Image" "Eject All USB Targets"  "Exit")
 	select opt in "${options[@]}"
@@ -506,6 +523,4 @@ else
     done
     #---------------------------------------------------------------#
 fi
-
-rm -r $mytmpdir
 
