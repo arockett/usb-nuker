@@ -1,11 +1,5 @@
 #!/bin/bash
 
-echo
-echo "*** NOTE ***:"
-echo "To ensure proper function of this program, do not remove or"
-echo "insert any USB devices while this script is running unless"
-echo "prompted to do so."
-echo "---------------------------------------------------------------"
 #---------------------------------------------------------------#
 #			usb-nuker.sh				#
 # Description:							#
@@ -17,15 +11,20 @@ echo "---------------------------------------------------------------"
 # 		   Author: Aaron Beckett			#
 # 		     Date: 02/12/2015				#
 #---------------------------------------------------------------#
-
+echo
+echo "*** NOTE ***:"
+echo "To ensure proper function of this program, do not remove or"
+echo "insert any USB devices while this script is running unless"
+echo "prompted to do so."
+echo "---------------------------------------------------------------"
 
 #---------------------------------------------------------------#
 #			INITIALIZE VARIABLES			#
 #---------------------------------------------------------------#
 #
-## Initialize temporary directory and temp files
+## Initialize temporary directory and temp files used for registering inserted USB devices
 #
-mytmpdir=$(mktemp -d /tmp/nuke.XXXXXX) || { echo "Failed to create temp dir"; exit 1; }
+mytmpdir=$(mktemp -d /tmp/nuker.XXXXXX) || { echo "Failed to create temp dir"; exit 1; }
 mylist=$(mktemp $mytmpdir/list1) || { echo "Failed to create temp file"; exit 1; }
 mylist2=$(mktemp $mytmpdir/list2) || { echo "Failed to create temp file"; exit 1; }
 mylist3=$(mktemp $mytmpdir/list3) || { echo "Failed to create temp file"; exit 1; }
@@ -45,6 +44,28 @@ declare -a targets=()
 imgpath=""
 valid_img=0
 target_status="i"
+
+#
+## Set the mode of execution based on the CL arguments
+#
+interactive_mode=0
+quick_nuke_mode=0
+quick_wipe_mode=0
+if [ $# -gt 0 ]; then
+    for op in $@; do
+	if [ "$op" == "-n" -o "$op" == "--quick-nuke" ]; then
+	    quick_nuke_mode=1
+	elif [ "$op" == "-w" -o "$op" == "--quick-wipe" ]; then
+	    quick_wipe_mode=1
+	else
+	    echo "*** ERROR ***: Invalid command line argument."
+	    echo "'$op' is not a valid argument."
+	    exit 1
+	fi
+    done
+else
+    interactive_mode=1
+fi
 
 #---------------------------------------------------------------#
 #			FUNCTIONS				#
@@ -343,34 +364,49 @@ eject_targets ()
 get_usb_list
 excluded=("${list[@]}")
 
+#################################################################
+#################################################################
 
-if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
+#---------------------------------------------------------------#
+#			Run Usb-Nuker				#
+#---------------------------------------------------------------#
+if [ $interactive_mode -ne 1 ]; then
     #-----------------------------------------------------------#
     #			NUCLEAR OPTION				#
-    #	Take whatever is on the first USB device and copy	#
-    #	it automatically to every other USB device.		#
+    # Two independent but non-exclusive modes:			#
+    #    1. Quick-wipe-mode:					#
+    #          Automatically wipe all USBs inserted as targets. #
+    #    2. Quick-nuke-mode:					#
+    #          Take whatever is on the master USB and copy it	#
+    #          automatically to all USB devices registered as	#
+    #          targets.						#
+    #								#
+    # NOTE: Running the Quick-Nuker in both modes will first	#
+    #       wipe, then nuke the targets.			#
     #-----------------------------------------------------------#
     #
-    echo "QUICK-NUKE MODE: Press [Ctrl+C] at any time to exit."
+    echo "Running the QUICK-NUKER: Press [Ctrl+C] at any time to exit."
     echo "---------------------------------------------------------------"
 
-    # Prompt user to insert master USB
-    read -p "Insert Master USB with valid disk image then press [Enter]..." -s
-    echo
-    echo "Registering master USB..."
-    sleep 3   # sleep for 3 seconds to ensure the usb drive has spun up
-    find_eligible_usbs
-    if [ ${#list[@]} -ne 1 ]; then
+    if [ $quick_nuke_mode -eq 1 ]; then
+	# Prompt user to insert master USB
+	read -p "Insert Master USB with valid disk image then press [Enter]..." -s
 	echo
-	echo "*** ERROR ***: You inserted the wrong number of USB devices."
-	echo "	You must insert one and only one USB device while registering"
-	echo "	the master device. Safely eject any devices you just inserted"
-	echo "	and try again."
-	exit 1
-    else
-	master=${list[0]}
-	excluded=("${excluded[@]}" "$master")
-	echo "Master USB registered."
+	echo "Registering master USB..."
+	sleep 3   # sleep for 3 seconds to ensure the usb drive has spun up
+	find_eligible_usbs
+	if [ ${#list[@]} -ne 1 ]; then
+	    echo
+	    echo "*** ERROR ***: You inserted the wrong number of USB devices."
+	    echo "	You must insert one and only one USB device while registering"
+	    echo "	the master device. Safely eject any devices you just inserted"
+	    echo "	and try again."
+	    exit 1
+	else
+	    master=${list[0]}
+	    excluded=("${excluded[@]}" "$master")
+	    echo "Master USB registered."
+	fi
     fi
 
     # Prompt user to insert target USBs
@@ -393,42 +429,65 @@ if [ "$1" == "-q" -o "$1" == "--quick-nuke" ]; then
 	echo "USB devices registered as targets."
     fi
 
-    # Pull master image from master USB
+    # Give them one last chance to change their minds...
     echo
-    echo "Copying disk image from master USB..."
-
-    diskutil unmountDisk $master &> /dev/null
-    dd if=/dev/r$master of=$myimg bs=1024k
-    imgpath="$myimg"
-    diskutil mountDisk $master &> /dev/null
-
-    echo "Master USB copied to temporary file."
-
-    # Validate disk image pulled
+    echo "*** WARNING ***:"
+    echo "The Quick-Nuker is about to overwrite ALL data on the"
+    echo "targeted USB devices. This action cannot be undone."
     echo
-    validate_img
-    if [ $valid_img -ne 1 ]; then
+    while [ "$proceed" != "y" ]; do
+	read -p "Would you like to continue? (y/n): " proceed
 	echo
-	echo "*** WARNING ***:"
-	echo "The disk image from the master USB is not a complete FAT disk image."
-	read -p "Would you like to continue anyway? (y/n): " ni
-	if [ "$ni" == "n" ]; then
+	if [ "$proceed" == "n" ]; then
 	    echo "Exiting USB Nuker..."
-	    exit 1
+	    exit 0
 	fi
+    done
+
+    if [ $quick_wipe_mode -eq 1 ]; then
+	# Wipe all data from USB targets
+	wipe_targets
     fi
 
-    # Write master image to target USBs
-    echo
-    read -p "Press [Enter] to copy the master USB to ALL targets..." -s
-    echo
-    nuke_targets
+    if [ $quick_nuke_mode -eq 1 ]; then
+	# Pull master image from master USB
+	echo
+	echo "Copying disk image from master USB..."
 
-    # Eject the master USB and all Targets
-    echo
-    echo "Ejecting master USB device..."
-    diskutil eject $master &> /dev/null
-    echo "Master USB ejected."
+	diskutil unmountDisk $master &> /dev/null
+	dd if=/dev/r$master of=$myimg bs=1024k
+	imgpath="$myimg"
+	diskutil mountDisk $master &> /dev/null
+
+	echo "Master USB copied to temporary file."
+
+	# Validate disk image pulled
+	echo
+	validate_img
+	if [ $valid_img -ne 1 ]; then
+	    echo
+	    echo "*** WARNING ***:"
+	    echo "The disk image from the master USB is not a complete FAT disk image."
+	    while [ "$ni" != "y" ]; do
+		read -p "Would you like to continue anyway? (y/n): " ni
+		if [ "$ni" == "n" ]; then
+		    echo "Exiting USB Nuker..."
+		    exit 0
+		fi
+	    done
+	fi
+
+	# Write master image to target USBs
+	nuke_targets
+
+	# Eject the master USB
+	echo
+	echo "Ejecting master USB device..."
+	diskutil eject $master &> /dev/null
+	echo "Maser USB ejected."
+    fi
+
+    # Eject all target USB devices
     eject_targets
 
 else
@@ -537,6 +596,5 @@ else
 	    break
 	done
     done
-    #---------------------------------------------------------------#
 fi
 
