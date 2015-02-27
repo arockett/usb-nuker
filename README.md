@@ -1,11 +1,12 @@
-# usb-nuke
-Write a disk image onto multiple USB thumb drives at once.
+# usb-nuker
 
-First, you need the .img file saved on the computer.
-Run the script in sudo without any of the usb devices plugged in.
-Then follow the instructions and it should work.
+The USB Nuker can be used to wipe all data from multiple USB drives at
+once and/or write a disk image onto multiple USB thumb drives. The USB
+wiping and imaging is all done in parallel to improve efficiency and
+minimize the amount of user interaction required to complete these tasks.
 
-Future versions will allow you to pull an image off of a USB
-device to use for imaging.
+Menu Mode:
 
-p.s. I'll make a better README later
+Quick Wipe Mode:
+
+Quick Nuke Mode:
